@@ -110,29 +110,32 @@ def detect_language(text: str) -> str:
 
 
 def get_transcript_langchain(url: str, language: str) -> tuple[str, str]:
-    lang_codes = [language, "en", "ar"] if language != "en" else ["en", "ar", "en-US", "en-GB"]
+    from youtube_transcript_api import YouTubeTranscriptApi
+    video_id = extract_video_id(url)
+    
+    # Try requested language first, then fallbacks
+    lang_codes = [language, "en", "ar", "en-US", "en-GB"] if language != "en" else ["en", "en-US", "en-GB", "ar"]
+    
     for lang in lang_codes:
         try:
-            loader = YoutubeLoader.from_youtube_url(
-                url,
-                add_video_info=False,
-                language=[lang],
-                transcript_format=TranscriptFormat.TEXT,
-            )
-            docs = loader.load()
-            if docs:
-                return " ".join(d.page_content for d in docs), f"LangChain YoutubeLoader ({lang})"
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
+            text = " ".join(chunk["text"] for chunk in transcript)
+            return text, f"YouTube Transcript API ({lang})"
         except Exception:
             continue
-    # Last resort: try without language filter
+    
+    # Last resort: get any available transcript
     try:
-        loader = YoutubeLoader.from_youtube_url(url, add_video_info=False)
-        docs = loader.load()
-        if docs:
-            return " ".join(d.page_content for d in docs), "LangChain YoutubeLoader (auto)"
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript = transcript_list.find_generated_transcript(
+            [t.language_code for t in transcript_list]
+        )
+        text = " ".join(chunk["text"] for chunk in transcript.fetch())
+        return text, f"YouTube Transcript API (auto)"
     except Exception:
         pass
-    raise Exception("No captions found via LangChain YoutubeLoader")
+    
+    raise Exception("No captions found")
 
 
 def get_transcript_asr(video_id: str) -> tuple[str, str]:
