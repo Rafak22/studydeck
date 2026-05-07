@@ -133,8 +133,10 @@ def get_transcript_asr(video_id: str) -> tuple[str, str]:
     aai.settings.api_key = st.secrets.get("ASSEMBLYAI_API_KEY", "")
     if not aai.settings.api_key:
         raise Exception("AssemblyAI API key not configured in Streamlit secrets.")
+    
     youtube_url = f"https://www.youtube.com/watch?v={video_id}"
-    transcriber = aai.Transcriber()
+    config = aai.TranscriptionConfig(speech_model="universal-2")
+    transcriber = aai.Transcriber(config=config)
     transcript = transcriber.transcribe(youtube_url)
     if transcript.status == "error":
         raise Exception(f"AssemblyAI ASR failed: {transcript.error}")
