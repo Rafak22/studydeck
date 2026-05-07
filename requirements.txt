@@ -6,4 +6,5 @@ langchain-community>=0.2.0
 yt-dlp>=2024.3.10
 docling>=2.5.0
 youtube-transcript-api>=0.6.2
+assemblyai>=0.20.0
 
