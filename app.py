@@ -128,44 +128,24 @@ def get_transcript_langchain(url: str, language: str) -> tuple[str, str]:
 
 
 def get_transcript_asr(video_id: str) -> tuple[str, str]:
-    from docling.document_converter import DocumentConverter
-    import yt_dlp
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        audio_template = os.path.join(tmpdir, "audio")
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": audio_template,
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "128",
-            }],
-            "quiet": True,
-            "no_warnings": True,
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
-
-        audio_path = None
-        for fname in os.listdir(tmpdir):
-            if fname.endswith(".mp3"):
-                audio_path = os.path.join(tmpdir, fname)
-                break
-
-        if not audio_path:
-            raise Exception("Audio download failed")
-
-        converter = DocumentConverter()
-        result = converter.convert(audio_path)
-        return result.document.export_to_text(), "Docling ASR (Whisper) — no captions found"
+    """Fallback: AssemblyAI ASR — works on cloud servers, no audio download needed."""
+    import assemblyai as aai
+    aai.settings.api_key = st.secrets.get("ASSEMBLYAI_API_KEY", "")
+    if not aai.settings.api_key:
+        raise Exception("AssemblyAI API key not configured in Streamlit secrets.")
+    youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+    transcriber = aai.Transcriber()
+    transcript = transcriber.transcribe(youtube_url)
+    if transcript.status == "error":
+        raise Exception(f"AssemblyAI ASR failed: {transcript.error}")
+    return transcript.text, "AssemblyAI ASR (no captions found)"
 
 
 def get_transcript(url: str, video_id: str, language: str) -> tuple[str, str]:
     try:
         return get_transcript_langchain(url, language)
     except Exception:
-        st.warning("⚠️ No captions found — switching to Docling ASR (Whisper). This may take a minute...")
+        st.warning("⚠️ No captions found — switching to AssemblyAI ASR. This may take a minute...")
         return get_transcript_asr(video_id)
 
 
@@ -179,7 +159,6 @@ def build_llm(api_key: str, model: str) -> ChatOpenAI:
 
 
 def safe_parse(raw: str, key: str) -> list:
-    """Strip any text before { and after } then parse JSON. Handles bismillah etc."""
     try:
         start = raw.find("{")
         end = raw.rfind("}") + 1
@@ -267,21 +246,22 @@ with st.sidebar:
     )
 
     model = st.selectbox(
-    "Model",
-    options=[
-        "openrouter/free",
-        "── Specific Free Models ──",
-        "deepseek/deepseek-r1:free",
-        "deepseek/deepseek-v3:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "qwen/qwen3-235b-a22b:free",
-        "nvidia/llama-3.1-nemotron-70b-instruct:free",
-        "── Paid ──",
-        "openai/gpt-4o-mini",
-        "anthropic/claude-3-haiku",
-        "anthropic/claude-3.5-sonnet",
-    ],
-)
+        "Model",
+        options=[
+            "openrouter/free",
+            "── Specific Free Models ──",
+            "deepseek/deepseek-r1:free",
+            "deepseek/deepseek-v3:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "qwen/qwen3-235b-a22b:free",
+            "nvidia/llama-3.1-nemotron-70b-instruct:free",
+            "── Paid ──",
+            "openai/gpt-4o-mini",
+            "anthropic/claude-3-haiku",
+            "anthropic/claude-3.5-sonnet",
+        ],
+    )
+
     if "──" in model:
         st.warning("Please select a model, not a separator!")
         st.stop()
@@ -298,7 +278,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown('<p style="font-size:0.75rem; color:#f0c060; text-align:center; letter-spacing:0.5px;">🎓 SDAIA · Applied AI Bootcamp</p>', unsafe_allow_html=True)
-    st.caption("Uses LangChain YoutubeLoader · Docling ASR (Whisper) as fallback")
+    st.caption("Uses LangChain YoutubeLoader · AssemblyAI ASR as fallback")
 
 # Main input
 url = st.text_input("🔗 YouTube URL", placeholder="https://www.youtube.com/watch?v=...")
