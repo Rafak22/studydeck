@@ -110,7 +110,7 @@ def detect_language(text: str) -> str:
 
 
 def get_transcript_langchain(url: str, language: str) -> tuple[str, str]:
-    lang_codes = [language, "en", "ar"] if language != "en" else ["en", "ar"]
+    lang_codes = [language, "en", "ar"] if language != "en" else ["en", "ar", "en-US", "en-GB"]
     for lang in lang_codes:
         try:
             loader = YoutubeLoader.from_youtube_url(
@@ -124,31 +124,32 @@ def get_transcript_langchain(url: str, language: str) -> tuple[str, str]:
                 return " ".join(d.page_content for d in docs), f"LangChain YoutubeLoader ({lang})"
         except Exception:
             continue
+    # Last resort: try without language filter
+    try:
+        loader = YoutubeLoader.from_youtube_url(url, add_video_info=False)
+        docs = loader.load()
+        if docs:
+            return " ".join(d.page_content for d in docs), "LangChain YoutubeLoader (auto)"
+    except Exception:
+        pass
     raise Exception("No captions found via LangChain YoutubeLoader")
 
 
 def get_transcript_asr(video_id: str) -> tuple[str, str]:
-    """Fallback: AssemblyAI ASR — works on cloud servers, no audio download needed."""
-    import assemblyai as aai
-    aai.settings.api_key = st.secrets.get("ASSEMBLYAI_API_KEY", "")
-    if not aai.settings.api_key:
-        raise Exception("AssemblyAI API key not configured in Streamlit secrets.")
-    
-    youtube_url = f"https://www.youtube.com/watch?v={video_id}"
-    config = aai.TranscriptionConfig(speech_models=["universal-2"])
-    transcriber = aai.Transcriber(config=config)
-    transcript = transcriber.transcribe(youtube_url)
-    if transcript.status == "error":
-        raise Exception(f"AssemblyAI ASR failed: {transcript.error}")
-    return transcript.text, "AssemblyAI ASR (no captions found)"
+    """Fallback: shown when no captions found on cloud."""
+    raise Exception(
+        "This video has no captions. On the cloud version, YouTube blocks audio download. "
+        "Please try a video WITH captions (Khan Academy, TED Talks, MIT lectures, etc.)"
+    )
 
 
 def get_transcript(url: str, video_id: str, language: str) -> tuple[str, str]:
     try:
         return get_transcript_langchain(url, language)
     except Exception:
-        st.warning("⚠️ No captions found — switching to AssemblyAI ASR. This may take a minute...")
-        return get_transcript_asr(video_id)
+        st.warning("⚠️ No captions found on this video.")
+        st.info("💡 Try a video with captions — Khan Academy, TED Talks, or any popular YouTube video work great!")
+        raise Exception("No captions available for this video on the cloud version.")
 
 
 def build_llm(api_key: str, model: str) -> ChatOpenAI:
@@ -280,7 +281,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown('<p style="font-size:0.75rem; color:#f0c060; text-align:center; letter-spacing:0.5px;">🎓 SDAIA · Applied AI Bootcamp</p>', unsafe_allow_html=True)
-    st.caption("Uses LangChain YoutubeLoader · AssemblyAI ASR as fallback")
+    st.caption("Uses LangChain YoutubeLoader · Docling ASR (Whisper) as local fallback")
 
 # Main input
 url = st.text_input("🔗 YouTube URL", placeholder="https://www.youtube.com/watch?v=...")
