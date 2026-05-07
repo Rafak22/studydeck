@@ -141,18 +141,13 @@ def get_transcript_asr(video_id: str) -> tuple[str, str]:
     return transcript.text, "AssemblyAI ASR (no captions found)"
 
 
-def get_transcript_asr(video_id: str) -> tuple[str, str]:
-    import assemblyai as aai
-    aai.settings.api_key = st.secrets.get("ASSEMBLYAI_API_KEY", "")
-    if not aai.settings.api_key:
-        raise Exception("AssemblyAI API key not configured in Streamlit secrets.")
-    youtube_url = f"https://www.youtube.com/watch?v={video_id}"
-    config = aai.TranscriptionConfig(speech_model=aai.SpeechModel.universal)
-    transcriber = aai.Transcriber(config=config)
-    transcript = transcriber.transcribe(youtube_url)
-    if transcript.status == "error":
-        raise Exception(f"AssemblyAI ASR failed: {transcript.error}")
-    return transcript.text, "AssemblyAI ASR (no captions found)"
+def get_transcript(url: str, video_id: str, language: str) -> tuple[str, str]:
+    try:
+        return get_transcript_langchain(url, language)
+    except Exception:
+        st.warning("⚠️ No captions found — switching to AssemblyAI ASR. This may take a minute...")
+        return get_transcript_asr(video_id)
+
 
 def build_llm(api_key: str, model: str) -> ChatOpenAI:
     return ChatOpenAI(
