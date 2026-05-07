@@ -135,7 +135,7 @@ def get_transcript_asr(video_id: str) -> tuple[str, str]:
         raise Exception("AssemblyAI API key not configured in Streamlit secrets.")
     
     youtube_url = f"https://www.youtube.com/watch?v={video_id}"
-    config = aai.TranscriptionConfig(speech_model="best")
+    config = aai.TranscriptionConfig(speech_models=aai.SpeechModel.best)
     transcriber = aai.Transcriber(config=config)
     transcript = transcriber.transcribe(youtube_url)
     if transcript.status == "error":
